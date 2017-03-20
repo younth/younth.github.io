@@ -1,0 +1,757 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="underscore,模板引擎," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.0" />
+
+
+
+
+
+
+<meta name="description" content="最近有个同事在写业务的时候，发现往模板引擎里面传数据，怎么传都报错（变量找不到之类的）。我们用的模板引擎是baiduTemplate。而之前并没有出现类似的情况，经过一番排查，发现是使用了use strict，baiduTemplate源码使用了eval实现，严格模式下是不能使用eval的。经过了这么大的坑后，打算好好研究下前端模板引擎，就从熟悉的undscore开始吧。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="underscore中template模板引擎源码解读">
+<meta property="og:url" content="http://younth.github.io/2015/07/21/2015-07-21-underscore-template/index.html">
+<meta property="og:site_name" content="Younth Blog">
+<meta property="og:description" content="最近有个同事在写业务的时候，发现往模板引擎里面传数据，怎么传都报错（变量找不到之类的）。我们用的模板引擎是baiduTemplate。而之前并没有出现类似的情况，经过一番排查，发现是使用了use strict，baiduTemplate源码使用了eval实现，严格模式下是不能使用eval的。经过了这么大的坑后，打算好好研究下前端模板引擎，就从熟悉的undscore开始吧。">
+<meta property="og:updated_time" content="2015-07-21T15:49:58.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="underscore中template模板引擎源码解读">
+<meta name="twitter:description" content="最近有个同事在写业务的时候，发现往模板引擎里面传数据，怎么传都报错（变量找不到之类的）。我们用的模板引擎是baiduTemplate。而之前并没有出现类似的情况，经过一番排查，发现是使用了use strict，baiduTemplate源码使用了eval实现，严格模式下是不能使用eval的。经过了这么大的坑后，打算好好研究下前端模板引擎，就从熟悉的undscore开始吧。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":0,"b2t":false,"scrollpercent":false},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://younth.github.io/2015/07/21/2015-07-21-underscore-template/"/>
+
+
+
+
+
+  <title> underscore中template模板引擎源码解读 | Younth Blog </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Younth Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle"></p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://younth.github.io/2015/07/21/2015-07-21-underscore-template/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="younth">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/img/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Younth Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                underscore中template模板引擎源码解读
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2015-07-21T22:49:36+08:00">
+                2015-07-21
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/源码解读/" itemprop="url" rel="index">
+                    <span itemprop="name">源码解读</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2015/07/21/2015-07-21-underscore-template/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count ds-thread-count" data-thread-key="2015/07/21/2015-07-21-underscore-template/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>最近有个同事在写业务的时候，发现往模板引擎里面传数据，怎么传都报错（变量找不到之类的）。我们用的模板引擎是<a href="http://tangram.baidu.com/BaiduTemplate/" target="_blank" rel="external">baiduTemplate</a>。而之前并没有出现类似的情况，经过一番排查，发现是使用了<code>use strict</code>，baiduTemplate源码使用了<code>eval</code>实现，<em>严格模式下是不能使用eval的</em>。经过了这么大的坑后，打算好好研究下前端模板引擎，就从熟悉的undscore开始吧。<br><a id="more"></a></p>
+<p>underscore是个非常成熟的前端类库了。现在已经更新到<code>1.83</code>版本了。关于unserscore的api可以参考其官网文档。本次我们的主题是分析其template模板引擎部分的实现。</p>
+<p>##template实现思路</p>
+<p>首先我们定义一个字符串：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">var tpl = &quot;&lt;div&gt;&#123;name&#125;&lt;/div&gt;&lt;div&gt;&#123;age&#125;&lt;/div&gt;&lt;div&gt;&#123;home&#125;&lt;/div&gt;&lt;hr/&gt;&quot;</div></pre></td></tr></table></figure>
+<p>模板引擎说的简单点，就是用已知的数据(data)去替换tpl中相应的变量，然后生成一份新的字符串。</p>
+<p><em>怎么替换呢？</em><br>这里应该比较明显，用正则去匹配。</p>
+<pre><code>var reg = /\{[A-Za-z]*\}/;//匹配{}
+var para = reg.exec(tpl);
+</code></pre><p>匹配到第一个{name}后，标志name,并保存其之前的html标签<code>&lt;div&gt;</code>,然后继续匹配剩余的tpl。<br>最后，将模板中的标识变为data的数据即可,得到新的html。<br>大概的思路是这样的，这里面还要考虑如何直接输出js代码，如何过滤等。下面来看看underscore是怎么实现的。</p>
+<p>##underscore中实现的模板引擎</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div><div class="line">77</div><div class="line">78</div><div class="line">79</div><div class="line">80</div><div class="line">81</div><div class="line">82</div><div class="line">83</div><div class="line">84</div><div class="line">85</div><div class="line">86</div><div class="line">87</div><div class="line">88</div><div class="line">89</div><div class="line">90</div><div class="line">91</div><div class="line">92</div><div class="line">93</div><div class="line">94</div><div class="line">95</div><div class="line">96</div><div class="line">97</div><div class="line">98</div><div class="line">99</div><div class="line">100</div><div class="line">101</div><div class="line">102</div><div class="line">103</div><div class="line">104</div><div class="line">105</div><div class="line">106</div><div class="line">107</div><div class="line">108</div><div class="line">109</div><div class="line">110</div><div class="line">111</div><div class="line">112</div><div class="line">113</div><div class="line">114</div><div class="line">115</div><div class="line">116</div><div class="line">117</div><div class="line">118</div><div class="line">119</div><div class="line">120</div><div class="line">121</div><div class="line">122</div><div class="line">123</div><div class="line">124</div><div class="line">125</div><div class="line">126</div><div class="line">127</div><div class="line">128</div><div class="line">129</div><div class="line">130</div><div class="line">131</div><div class="line">132</div><div class="line">133</div><div class="line">134</div><div class="line">135</div><div class="line">136</div><div class="line">137</div><div class="line">138</div><div class="line">139</div><div class="line">140</div><div class="line">141</div><div class="line">142</div><div class="line">143</div><div class="line">144</div><div class="line">145</div><div class="line">146</div><div class="line">147</div><div class="line">148</div><div class="line">149</div><div class="line">150</div><div class="line">151</div><div class="line">152</div><div class="line">153</div><div class="line">154</div><div class="line">155</div><div class="line">156</div><div class="line">157</div><div class="line">158</div><div class="line">159</div><div class="line">160</div><div class="line">161</div><div class="line">162</div><div class="line">163</div><div class="line">164</div><div class="line">165</div><div class="line">166</div><div class="line">167</div><div class="line">168</div><div class="line">169</div><div class="line">170</div><div class="line">171</div><div class="line">172</div><div class="line">173</div><div class="line">174</div><div class="line">175</div></pre></td><td class="code"><pre><div class="line">// 定义模板的界定符号，在template方法中使用</div><div class="line">_.templateSettings = &#123;</div><div class="line">  evaluate    : /&lt;%([\s\S]+?)%&gt;/g,// js可执行代码的界定符</div><div class="line">  interpolate : /&lt;%=([\s\S]+?)%&gt;/g,// 直接输出变量的界定符</div><div class="line">  escape      : /&lt;%-([\s\S]+?)%&gt;/g // 需要将HTML输出为字符串(将特殊符号转换为字符串形式)的界定符</div><div class="line">&#125;;</div><div class="line">// 自定义模板界定符号时使用</div><div class="line">var noMatch = /(.)^/;</div><div class="line">// escapes对象记录了需要进行相互换转的特殊符号与字符串形式的对应关系，在两者进行相互转换时作为索引使用</div><div class="line">var escapes = &#123;</div><div class="line">  &quot;&apos;&quot;:      &quot;&apos;&quot;,</div><div class="line">  &apos;\\&apos;:     &apos;\\&apos;,</div><div class="line">  &apos;\r&apos;:     &apos;r&apos;,</div><div class="line">  &apos;\n&apos;:     &apos;n&apos;,</div><div class="line">  &apos;\u2028&apos;: &apos;u2028&apos;,</div><div class="line">  &apos;\u2029&apos;: &apos;u2029&apos;</div><div class="line">&#125;;</div><div class="line">// 定义模板中需要替换的特殊符号，包含反斜杠, 单引号, 回车符, 换行符, 制表符, 行分隔符, 段落分隔符</div><div class="line">// 在将字符串中的特殊符号转换为字符串形式时使用</div><div class="line">var escaper = /\\|&apos;|\r|\n|\u2028|\u2029/g;</div><div class="line"></div><div class="line">var escapeChar = function(match) &#123;</div><div class="line">  // 将特殊符号转义为字符串形式,否则会直接起作用</div><div class="line">  return &apos;\\&apos; + escapes[match];</div><div class="line">&#125;;</div><div class="line">/*   </div><div class="line">Underscore模板解析方法，用于将数据填充到一个模板字符串中</div><div class="line">模板解析流程：</div><div class="line">1. 将模板中的特殊符号转换为字符串</div><div class="line">2. 解析escape形式标签，将内容解析为HTML实体</div><div class="line">3. 解析interpolate形式标签，输出变量</div><div class="line">4. 解析evaluate形式标签，创建可执行的JavaScript代码</div><div class="line">5. 生成处理函数，该函数在得到数据后可直接填充到模板并返回填充后的字符串</div><div class="line">6. 根据参数返回填充后的字符串或处理函数的句柄</div><div class="line">*/  </div><div class="line">_.template = function(text, settings, oldSettings) &#123;</div><div class="line"> // 模板配置：如果没有指定配置项，则使用templateSettings中指定的配置项</div><div class="line">  if (!settings &amp;&amp; oldSettings) settings = oldSettings;</div><div class="line">  settings = _.defaults(&#123;&#125;, settings, _.templateSettings);</div><div class="line"></div><div class="line">  // Combine delimiters into one regular expression via alternation.</div><div class="line">  // 通过&apos;|&apos;操作符将正则规则合并为一个表达式</div><div class="line">  // /&lt;%-([\s\S]+?)%&gt;|&lt;%=([\s\S]+?)%&gt;|&lt;%([\s\S]+?)%&gt;|$/g</div><div class="line">  // 这个正则会由左向右的顺序匹配，如果成功了就不找后面的了</div><div class="line">  var matcher = RegExp([</div><div class="line">    (settings.escape || noMatch).source,</div><div class="line">    (settings.interpolate || noMatch).source,</div><div class="line">    (settings.evaluate || noMatch).source</div><div class="line">  ].join(&apos;|&apos;) + &apos;|$&apos;, &apos;g&apos;);</div><div class="line"></div><div class="line">  var index = 0;</div><div class="line">  var source = &quot;__p+=&apos;&quot;;</div><div class="line">  text.replace(matcher, function(match, escape, interpolate, evaluate, offset) &#123;</div><div class="line">    // offset: 匹配的位置</div><div class="line">    // 将匹配字符串之前的字符串保存起来 注意做了字符串转义处理</div><div class="line">    source += text.slice(index, offset).replace(escaper, escapeChar);</div><div class="line">    // 更新index，继续处理后续的</div><div class="line">    index = offset + match.length;</div><div class="line">    //针对不同的情况构造处理语句</div><div class="line">    if (escape) &#123;</div><div class="line">      /*</div><div class="line">        html转义输出</div><div class="line">        &quot;__p+=&apos;  \n\n    \n    name:&apos;+</div><div class="line">        ((__t=(age ))==null?&apos;&apos;:__t)+</div><div class="line">        &apos;\n    sex:&apos;+</div><div class="line">        ((__t=(sex ))==null?&apos;&apos;:_.escape(__t))+</div><div class="line">        &apos;&quot;</div><div class="line">      */</div><div class="line">      source += &quot;&apos;+\n((__t=(&quot; + escape + &quot;))==null?&apos;&apos;:_.escape(__t))+\n&apos;&quot;;</div><div class="line">    &#125; else if (interpolate) &#123;</div><div class="line">      /*</div><div class="line">      直接输出</div><div class="line">      &quot;__p+=&apos;  \n\n    \n    name:&apos;+</div><div class="line">      ((__t=(age ))==null?&apos;&apos;:__t)+</div><div class="line">      &apos;&quot;</div><div class="line">      ---&gt;转为js</div><div class="line">      __p+=&apos;  \n\n    \n    name:&apos;+</div><div class="line">      ((__t=(age ))==null?&apos;&apos;:__t)</div><div class="line">       */</div><div class="line">      source += &quot;&apos;+\n((__t=(&quot; + interpolate + &quot;))==null?&apos;&apos;:__t)+\n&apos;&quot;;</div><div class="line">    &#125; else if (evaluate) &#123;</div><div class="line">      /*</div><div class="line">      js代码</div><div class="line">      &quot;__p+=&apos;  \n\n    \n    name:&apos;+</div><div class="line">      ((__t=(age ))==null?&apos;&apos;:__t)+</div><div class="line">      &apos;\n    sex:&apos;+</div><div class="line">      ((__t=(sex ))==null?&apos;&apos;:_.escape(__t))+</div><div class="line">      &apos;\n    &apos;;</div><div class="line">      print(sex) </div><div class="line">      __p+=&apos;&quot;</div><div class="line">      */</div><div class="line">      source += &quot;&apos;;\n&quot; + evaluate + &quot;\n__p+=&apos;&quot;;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    // Adobe VMs need the match returned to produce the correct offest.</div><div class="line">    return match;</div><div class="line">  &#125;);</div><div class="line">  source += &quot;&apos;;\n&quot;;//换行</div><div class="line"></div><div class="line">  /*</div><div class="line">    无预定义属性名，利用with构建局部作用域，并把代码填充进去</div><div class="line">    with(obj||&#123;&#125;)&#123;</div><div class="line">    __p+=&apos;  \n\n    \n    name:&apos;+</div><div class="line">    ((__t=(age ))==null?&apos;&apos;:__t)+</div><div class="line">    &apos;\n    sex:&apos;+</div><div class="line">    ((__t=(sex ))==null?&apos;&apos;:_.escape(__t))+</div><div class="line">    &apos;\n    &apos;;</div><div class="line">    print(sex) </div><div class="line">    __p+=&apos;\n    &apos;;</div><div class="line">    _.each(list, function(item) &#123;</div><div class="line">    __p+=&apos;\n        &lt;p&gt;&apos;+</div><div class="line">    ((__t=(item.name))==null?&apos;&apos;:__t)+</div><div class="line">    &apos;&lt;/p&gt;\n    &apos;;</div><div class="line">    &#125;);</div><div class="line">    __p+=&apos;\n\n&apos;;</div><div class="line">    &#125;</div><div class="line">    &quot;</div><div class="line">    如果设置了variable，不走with逻辑</div><div class="line">   */</div><div class="line">  if (!settings.variable) source = &apos;with(obj||&#123;&#125;)&#123;\n&apos; + source + &apos;&#125;\n&apos;;</div><div class="line"></div><div class="line">  //定义变量 __t 存放data的临时变量  __p 存放拼接的字符串 print 输出变量</div><div class="line">  /*</div><div class="line">  &quot;var __t,__p=&apos;&apos;,__j=Array.prototype.join,print=function()&#123;__p+=__j.call(arguments,&apos;&apos;);&#125;;</div><div class="line">  with(obj||&#123;&#125;)&#123;</div><div class="line">  __p+=&apos;  \n\n    \n    name:&apos;+</div><div class="line">  ((__t=(age ))==null?&apos;&apos;:__t)+</div><div class="line">  &apos;\n    sex:&apos;+</div><div class="line">  ((__t=(sex ))==null?&apos;&apos;:_.escape(__t))+</div><div class="line">  &apos;\n    &apos;;</div><div class="line">  print(sex) </div><div class="line">  __p+=&apos;\n    &apos;;</div><div class="line">  _.each(list, function(item) &#123;</div><div class="line">  __p+=&apos;\n        &lt;p&gt;&apos;+</div><div class="line">  ((__t=(item.name))==null?&apos;&apos;:__t)+</div><div class="line">  &apos;&lt;/p&gt;\n    &apos;;</div><div class="line">  &#125;);</div><div class="line">  __p+=&apos;\n\n&apos;;</div><div class="line">  &#125;</div><div class="line">  return __p;</div><div class="line">  &quot;</div><div class="line">   */</div><div class="line">  source = &quot;var __t,__p=&apos;&apos;,__j=Array.prototype.join,&quot; +</div><div class="line">    &quot;print=function()&#123;__p+=__j.call(arguments,&apos;&apos;);&#125;;\n&quot; +</div><div class="line">    source + &apos;return __p;\n&apos;;</div><div class="line"></div><div class="line">  try &#123;</div><div class="line"></div><div class="line">    /*</div><div class="line">      用new Function解析，创建一个函数，将源码作为函数执行体，将obj和Underscore作为参数传递给该函数</div><div class="line">      function anonymous(obj, _ ,) &#123;&#125;</div><div class="line">      如果设置variable，则直接传variable</div><div class="line">     */</div><div class="line">    var render = new Function(settings.variable || &apos;obj&apos;, &apos;_&apos;, source);</div><div class="line">  &#125; catch (e) &#123;</div><div class="line">    e.source = source;</div><div class="line">    throw e;</div><div class="line">  &#125;</div><div class="line"></div><div class="line">  /*</div><div class="line">    如果没有指定填充数据，则返回一个函数，用于将接收到的数据替换到模板</div><div class="line">    如果在程序中会多次填充相同模板，那么在第一次调用时建议不指定填充数据，在获得处理函数的引用后，再直接调用会提高运行效率</div><div class="line">    传参 data  _</div><div class="line">    运行预编译模板</div><div class="line">   */</div><div class="line">  var template = function(data) &#123;</div><div class="line">    return render.call(this, data, _);</div><div class="line">  &#125;;</div><div class="line"></div><div class="line">  // 将创建的源码字符串添加到函数对象中，一般用于调试和测试</div><div class="line">  var argument = settings.variable || &apos;obj&apos;;</div><div class="line">  template.source = &apos;function(&apos; + argument + &apos;)&#123;\n&apos; + source + &apos;&#125;&apos;;</div><div class="line"></div><div class="line">  return template;</div><div class="line">&#125;;</div></pre></td></tr></table></figure>
+<p>这里不得不提两点：</p>
+<ol>
+<li>这段代码太经典了，太精彩了，太销魂了。即可以细嚼慢咽，又让人回味无穷。</li>
+<li>underscore<code>1.8</code>之前版本的实现跟当前版本有些出入，导致api也不尽相同。最新版已经不支持预编译与解析一句话同时传参搞定了，这本身也是不合理的。现在是<em>先预编译模板得到处理函数</em>，然后再去填充数据。</li>
+</ol>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/underscore/" rel="tag"># underscore</a>
+          
+            <a href="/tags/模板引擎/" rel="tag"># 模板引擎</a>
+          
+        </div>
+      
+
+      
+        
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2015/06/30/2015-06-30-beijing-oneyear/" rel="next" title="外面的世界-记「北漂」一周年">
+                <i class="fa fa-chevron-left"></i> 外面的世界-记「北漂」一周年
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2016/11/20/2016-11-20-npm-use-skill/" rel="prev" title="深入浅出NPM">
+                深入浅出NPM <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+          
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+      <div class="ds-thread" data-thread-key="2015/07/21/2015-07-21-underscore-template/"
+           data-title="underscore中template模板引擎源码解读" data-url="http://younth.github.io/2015/07/21/2015-07-21-underscore-template/">
+      </div>
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+
+      <section class="site-overview sidebar-panel sidebar-panel-active">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/img/avatar.png"
+               alt="younth" />
+          <p class="site-author-name" itemprop="name">younth</p>
+           
+              <p class="site-description motion-element" itemprop="description">专注js全栈、前后端分离、自动化工具</p>
+          
+        </div>
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+              <a href="/archives">
+                <span class="site-state-item-count">11</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/index.html">
+                <span class="site-state-item-count">7</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/index.html">
+                <span class="site-state-item-count">15</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              <span class="links-of-author-item">
+                <a href="https://github.com/younth" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="http://weibo.com/yunstudio2" target="_blank" title="微博">
+                  
+                    <i class="fa fa-fw fa-globe"></i>
+                  
+                  微博
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+          <div class="links-of-blogroll motion-element links-of-blogroll-inline">
+            <div class="links-of-blogroll-title">
+              <i class="fa  fa-fw fa-globe"></i>
+              Links
+            </div>
+            <ul class="links-of-blogroll-list">
+              
+                <li class="links-of-blogroll-item">
+                  <a href="http://waimai.baidu.com/" title="百度外卖" target="_blank">百度外卖</a>
+                </li>
+              
+            </ul>
+          </div>
+        
+
+        
+
+
+      </section>
+
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy;  2015 - 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">younth</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Mist
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+  
+    
+  
+
+  <script type="text/javascript">
+    var duoshuoQuery = {short_name:"younth"};
+    (function() {
+      var ds = document.createElement('script');
+      ds.type = 'text/javascript';ds.async = true;
+      ds.id = 'duoshuo-script';
+      ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+      ds.charset = 'UTF-8';
+      (document.getElementsByTagName('head')[0]
+      || document.getElementsByTagName('body')[0]).appendChild(ds);
+    })();
+  </script>
+
+  
+    
+    
+    <script src="/lib/ua-parser-js/dist/ua-parser.min.js?v=0.7.9"></script>
+    <script src="/js/src/hook-duoshuo.js"></script>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+
+  
+
+</body>
+</html>
