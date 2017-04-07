@@ -261,6 +261,218 @@
   
 
   <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+    <link itemprop="mainEntityOfPage" href="http://younth.github.io/2017/04/07/react-perf/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="younth">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/img/avatar.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Younth Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                
+                <a class="post-title-link" href="/2017/04/07/react-perf/" itemprop="url">
+                  React组件性能调优
+                </a>
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-04-07T15:08:02+08:00">
+                2017-04-07
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/react/" itemprop="url" rel="index">
+                    <span itemprop="name">react</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2017/04/07/react-perf/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count ds-thread-count" data-thread-key="2017/04/07/react-perf/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <hr>
+<p>React是一个专注于UI层的框架，它使用虚拟DOM技术，以保证它UI的高速渲染；使用单向数据流，因此它数据绑定更加简单；那么它内部是如何保持简单高效的UI渲染呢？这种渲染机制有可能存在什么性能问题呢？</p>
+<h3 id="React组件渲染问题引出"><a href="#React组件渲染问题引出" class="headerlink" title="React组件渲染问题引出"></a>React组件渲染问题引出</h3><p>React不直接操作DOM，它在内存中维护一个快速响应的DOM描述，render方法返回一个DOM的描述，React能够计算出两个DOM描述的差异，然后更新浏览器中的DOM。这就是著名的<code>DOM Diff</code>。</p>
+<p>就是说React在接收到属性(props)或者状态(state)更新时，就会通过前面的方式更新UI。所以React整个UI渲染是比较快的。但是这里面可能出现的问题是：</p>
+<p>假设我们定义一个父组件，其包含了5000个子组件。我们有一个输入框输入操作，每次输入一个数字，对应的那个子组件背景色变红。</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line">&lt;Components&gt;</div><div class="line">  &lt;Components-1 /&gt;</div><div class="line">  &lt;Components-2 /&gt;</div><div class="line">  &lt;Components-3 /&gt;</div><div class="line">  ...</div><div class="line">  &lt;Components-5000 /&gt;</div><div class="line">&lt;/Components&gt;</div></pre></td></tr></table></figure>
+<p>这样我们输入数字1，则子组件1背景色变化，但是在这个过程中，所有的子组件都进行了重新渲染，导致整体渲染变慢。造成这种现象的原因是 <code>React中父组件更新默认触发所有子组件更新</code>。（具体例子见文章后demo链接）</p>
+<p>同时，我们经常在遍历列表元素时候会遇到这样的提示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">Warning: Each child in an array or iterator should have a unique &quot;key&quot; prop.</div></pre></td></tr></table></figure>
+<p>这就是我们今天要讨论的两个性能优化点：</p>
+<ol>
+<li>父组件更新默认触发所有子组件更新</li>
+<li>列表类型的组件默认更新方式非常复杂</li>
+</ol>
+<h3 id="React性能检测工具"><a href="#React性能检测工具" class="headerlink" title="React性能检测工具"></a>React性能检测工具</h3><p>我们利用 <code>react-addons-perf</code> 进行性能检测。引入方法如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">import Perf from &apos;react-addons-perf&apos;</div><div class="line">window.Perf = Perf // 挂载到全局变量方便使用</div></pre></td></tr></table></figure>
+<p>检测方法，在浏览器控制台输入如下命令：</p>
+<ul>
+<li>开始记录：Perf.start()</li>
+<li>结束记录：Perf.stop()</li>
+<li>打印结果：printInclusive()</li>
+</ul>
+<p><img src="./1491542236024.png" alt="Alt text"></p>
+<p>控制台会以表格的形式展示出结果：</p>
+<p><img src="./1491542600197.png" alt="Alt text"></p>
+<p>上图记录了每个组件的执行耗时，渲染次数等关键信息。我们可以有针对性的进行优化。</p>
+<p><strong>注意：生产环境不要引入Perf</strong></p>
+<h3 id="React-性能优化原理"><a href="#React-性能优化原理" class="headerlink" title="React 性能优化原理"></a>React 性能优化原理</h3><p>这是React官网对组件渲染机制的描述图，其中绿色组件代表不需要更新，红色组件需要更新，影响更新的条件主要有SCU(shouldComponentUpdate)及DOM DIff结果。</p>
+<p><img src="./1491537026005.png" alt="Alt text"></p>
+<p>我们再来看看 <code>组件触发更新的流程图</code>：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div></pre></td><td class="code"><pre><div class="line">st=&gt;start: 开始</div><div class="line">update=&gt;condition: 属性/状态更新</div><div class="line">render=&gt;operation: 更新DOM</div><div class="line">norender=&gt;operation: 直接退出，不更新</div><div class="line">end=&gt;end: 结束</div><div class="line">gedom=&gt;operation: 生成虚拟DOM</div><div class="line">diff=&gt;condition: DOM Diff</div><div class="line">scu=&gt;condition: SCU</div><div class="line">cond=&gt;condition: DOM Diff判断是否改变</div><div class="line"></div><div class="line">st-&gt;update</div><div class="line">update(yes)-&gt;scu</div><div class="line">update(no)-&gt;norender-&gt;end</div><div class="line">scu(yes)-&gt;gedom-&gt;diff</div><div class="line">scu(no)-&gt;norender-&gt;end</div><div class="line">diff(yes)-&gt;render-&gt;end</div><div class="line">diff(no)-&gt;norender-&gt;end</div></pre></td></tr></table></figure>
+<p>通过上述流程图，再对比渲染的图解可以看到，<code>React的性能瓶颈主要出现在生成DOM及DOM Diff的过程</code>。如果进行性能优化，关键在：</p>
+<ul>
+<li>shouldComponentUpdate 阶段判断，如果属性及状态与上一次相同，这个时候很明显UI不会变化，也不需要执行后续生成DOM，DOM Diff的过程了，可以提高性能。</li>
+<li>DOM Diff 阶段优化，提高Diff的效率</li>
+</ul>
+<h3 id="如何提高组件的渲染效率"><a href="#如何提高组件的渲染效率" class="headerlink" title="如何提高组件的渲染效率"></a>如何提高组件的渲染效率</h3><p>针对文章开头提出的两个性能问题，我们得到以下解决方案：</p>
+<ul>
+<li>子组件执行 <code>shouldComponentUpdate</code> 方法，自行决定是否更新</li>
+<li>给列表中的组件添加key属性</li>
+</ul>
+<p>我们可以通过控制子组件的 <code>shouldComponentUpdate</code> 从而控制是否渲染：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line"><span class="comment">// 接收两个参数，分别为待更新的属性及状态值</span></div><div class="line">shouldComponentUpdate(nextProps, nextState) &#123;</div><div class="line">    <span class="comment">// 如果当前的value值与待更新不相等，才执行更新</span></div><div class="line">    <span class="keyword">return</span> <span class="keyword">this</span>.props.value !== nextProps.value;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>针对列表遍历类型，遍历时候增加唯一 <code>key</code> 属性值，对子组件进行唯一性识别，准确知道要操作的子组件，提高 DOM Diff 的效率。<br><figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">array.map(val, key) =&gt; &#123;</div><div class="line">   <span class="keyword">return</span> (</div><div class="line">       &lt;span key=&#123;key&#125;&gt;&#123;val&#125;&lt;/span&gt;</div><div class="line">   )</div><div class="line">&#125;)</div></pre></td></tr></table></figure></p>
+<h3 id="PureRenderMixin-与-PureComponent"><a href="#PureRenderMixin-与-PureComponent" class="headerlink" title="PureRenderMixin 与 PureComponent"></a>PureRenderMixin 与 PureComponent</h3><p>为了提高React组件渲染性能，React 针对组件的 <code>shouldComponentUpdate</code> 方法进行了封装处理，我们不需要在每个组件里面手动编写 <code>shouldComponentUpdate</code>。</p>
+<h4 id="PureRenderMixin"><a href="#PureRenderMixin" class="headerlink" title="PureRenderMixin"></a>PureRenderMixin</h4><p>React在之前版本提供了 <code>PureRenderMixin</code> 的mixin形式，其用法如下：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="comment">// react官方demo</span></div><div class="line"><span class="keyword">import</span> PureRenderMixin <span class="keyword">from</span> <span class="string">'react-addons-pure-render-mixin'</span>;</div><div class="line"><span class="class"><span class="keyword">class</span> <span class="title">FooComponent</span> <span class="keyword">extends</span> <span class="title">React</span>.<span class="title">Component</span> </span>&#123;</div><div class="line">  <span class="keyword">constructor</span>(props) &#123;</div><div class="line">    <span class="keyword">super</span>(props);</div><div class="line">    <span class="keyword">this</span>.shouldComponentUpdate = PureRenderMixin.shouldComponentUpdate.bind(<span class="keyword">this</span>);</div><div class="line">  &#125;</div></pre></td></tr></table></figure>
+<p>其原理就是重写了 shouldComponentUpdate 方法。</p>
+<h4 id="PureComponent"><a href="#PureComponent" class="headerlink" title="PureComponent"></a>PureComponent</h4><p>React 15.3.0 新增了一个 <code>PureComponent</code> 类，以 ES2015 class 的方式方便地定义纯组件 (pure component)，用于取代之前的 <code>PureRenderMixin</code>。</p>
+<p>这个类的用法很简单，如果你有些组件是纯组件，那么把继承类从 Component 换成 PureComponent 即可。当组件更新时，如果组件的 props 和 state 都没发生改变，render 方法就不会触发，省去 Virtual DOM 的生成和比对过程，达到提升性能的目的。</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div></pre></td><td class="code"><pre><div class="line"><span class="keyword">import</span> React, &#123; PureComponent &#125; <span class="keyword">from</span> <span class="string">'react'</span></div><div class="line"></div><div class="line"><span class="class"><span class="keyword">class</span> <span class="title">Example</span> <span class="keyword">extends</span> <span class="title">PureComponent</span> </span>&#123;</div><div class="line">  render() &#123;</div><div class="line">    <span class="comment">// ...</span></div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这里要注意的是：<code>PureRenderMixin、PureComponent</code> 内进行的仅仅是浅比较对象(<code>shallowCompare</code>)。如果对象包含了复杂的数据结构，深层次的差异可能会产生误判。比如，如果我们的state变为：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">state = &#123;</div><div class="line">     <span class="attr">value</span>: &#123; <span class="attr">foo</span>: <span class="string">'bar'</span> &#125;</div><div class="line">&#125;</div><div class="line"></div><div class="line"><span class="comment">// 每次更改value值的时候进行：</span></div><div class="line"><span class="keyword">this</span>.setState(&#123; <span class="attr">value</span>: newValue &#125;);</div></pre></td></tr></table></figure>
+<p>此时直接通过值的比较是行不通的，因为对象的引用关系，导致在子组件里面接受到的 <code>this.props.value</code> 与 <code>nextProps.value</code> 永远都是相等的。这里的解决方案主要有：</p>
+<ul>
+<li>深比较： 原理与深拷贝类似，比较耗时，不推荐</li>
+<li>immutable.js：FaceBook官方提出的不可变数据解决方案，主要解决了复杂数据在deepClone和对比过程中性能损耗</li>
+</ul>
+<h4 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h4><p>虽然React提供了<code>Virtual DOM</code> <code>DOM Diff</code> 等优秀的能力来提高渲染性能，但是在实际使用过程中，我们经常会遇到父组件更新，不需要更新所以子组件的场景（分页），此时必须考虑利用React本周的渲染机制来进行优化。</p>
+<p>附： 文章涉及的相关代码</p>
+
+          
+        
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <div>
+      
+    </div>
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
     <link itemprop="mainEntityOfPage" href="http://younth.github.io/2017/04/05/hexo-site-kit/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1683,163 +1895,6 @@
 
 
     
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
-    <link itemprop="mainEntityOfPage" href="http://younth.github.io/2015/06/25/2015-06-25-mac-svn/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="younth">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/img/avatar.png">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Younth Blog">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-            
-            
-              
-                
-                <a class="post-title-link" href="/2015/06/25/2015-06-25-mac-svn/" itemprop="url">
-                  mac下高效的使用svn
-                </a>
-              
-            
-          </h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">发表于</span>
-              
-              <time title="创建于" itemprop="dateCreated datePublished" datetime="2015-06-25T15:20:00+08:00">
-                2015-06-25
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-            <span class="post-category" >
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">分类于</span>
-              
-              
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/开发工具/" itemprop="url" rel="index">
-                    <span itemprop="name">开发工具</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-              <span class="post-comments-count">
-                <span class="post-meta-divider">|</span>
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-comment-o"></i>
-                </span>
-                <a href="/2015/06/25/2015-06-25-mac-svn/#comments" itemprop="discussionUrl">
-                  <span class="post-comments-count ds-thread-count" data-thread-key="2015/06/25/2015-06-25-mac-svn/" itemprop="commentCount"></span>
-                </a>
-              </span>
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          <p>svn已经属于过时的版本管理工具了，在<a href="https:://github.com/" title="github">github</a>大行其道的今天，git已经被广泛运用各大公司。可是总有事与愿违的时候，由于<code>历史沿革</code>的原因，在一些大公司里面,svn仍然被广泛运用于各大产品线，为此我们必须熟悉一些svn操作的技巧。<br>
-          <!--noindex-->
-          <div class="post-button text-center">
-            <a class="btn" href="/2015/06/25/2015-06-25-mac-svn/#more" rel="contents">
-              阅读全文 &raquo;
-            </a>
-          </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    <div>
-      
-    </div>
-
-    <div>
-      
-    </div>
-
-    <div>
-      
-    </div>
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-
-
-    
   </section>
 
   
@@ -1889,7 +1944,7 @@
           
             <div class="site-state-item site-state-posts">
               <a href="/archives">
-                <span class="site-state-item-count">12</span>
+                <span class="site-state-item-count">13</span>
                 <span class="site-state-item-name">日志</span>
               </a>
             </div>
@@ -1900,7 +1955,7 @@
             
             <div class="site-state-item site-state-categories">
               <a href="/categories/index.html">
-                <span class="site-state-item-count">7</span>
+                <span class="site-state-item-count">8</span>
                 <span class="site-state-item-name">分类</span>
               </a>
             </div>
@@ -1911,7 +1966,7 @@
             
             <div class="site-state-item site-state-tags">
               <a href="/tags/index.html">
-                <span class="site-state-item-count">16</span>
+                <span class="site-state-item-count">17</span>
                 <span class="site-state-item-name">标签</span>
               </a>
             </div>
